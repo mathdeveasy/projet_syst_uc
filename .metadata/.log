@@ -1,0 +1,29 @@
+!SESSION 2026-04-15 11:39:01.254 -----------------------------------------------
+eclipse.buildId=Version 2.1.1
+java.version=21.0.9
+java.vendor=Eclipse Adoptium
+BootLoader constants: OS=macosx, ARCH=aarch64, WS=cocoa, NL=fr_FR
+Framework arguments:  -keyring /Users/math/.eclipse_keyring
+Command-line arguments:  -os macosx -ws cocoa -arch aarch64 -keyring /Users/math/.eclipse_keyring -data /Users/math/Desktop/cours/S8/syst_uc/projet
+
+!ENTRY com.st.stm32cube.ide.mcu.informationcenter 1 1 2026-04-15 11:39:03.612
+!MESSAGE Log4j2 initialized with config file /Users/math/Desktop/cours/S8/syst_uc/projet/.metadata/.log4j2.xml
+
+!ENTRY com.st.stm32cube.ide.mcu.ide 1 1 2026-04-15 11:39:04.973
+!MESSAGE Started RMI Server, listening on port 41338
+!SESSION 2026-04-15 11:39:13.091 -----------------------------------------------
+eclipse.buildId=Version 2.1.1
+java.version=21.0.9
+java.vendor=Eclipse Adoptium
+BootLoader constants: OS=macosx, ARCH=aarch64, WS=cocoa, NL=fr_FR
+Framework arguments:  -keyring /Users/math/.eclipse_keyring
+Command-line arguments:  -os macosx -ws cocoa -arch aarch64 -keyring /Users/math/.eclipse_keyring -data /Users/math/Desktop/cours/S8/syst_uc/projet
+
+!ENTRY com.st.stm32cube.ide.mcu.informationcenter 1 1 2026-04-15 11:39:14.992
+!MESSAGE Log4j2 initialized with config file /Users/math/Desktop/cours/S8/syst_uc/projet/.metadata/.log4j2.xml
+
+!ENTRY com.st.stm32cube.ide.mcu.ide 1 1 2026-04-15 11:39:16.466
+!MESSAGE Started RMI Server, listening on port 41339
+
+!ENTRY org.eclipse.cdt.core 1 0 2026-04-15 11:40:28.990
+!MESSAGE Indexed 'project_me' (23 sources, 117 headers) in 1,17 sec: 11 308 declarations; 49 855 references; 3 unresolved inclusions; 46 syntax errors; 171 unresolved names (0,28 %)
