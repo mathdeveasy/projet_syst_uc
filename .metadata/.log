@@ -27,3 +27,19 @@ Command-line arguments:  -os macosx -ws cocoa -arch aarch64 -keyring /Users/math
 
 !ENTRY org.eclipse.cdt.core 1 0 2026-04-15 11:40:28.990
 !MESSAGE Indexed 'project_me' (23 sources, 117 headers) in 1,17 sec: 11 308 declarations; 49 855 references; 3 unresolved inclusions; 46 syntax errors; 171 unresolved names (0,28 %)
+!SESSION 2026-04-16 10:59:15.506 -----------------------------------------------
+eclipse.buildId=Version 2.1.1
+java.version=21.0.9
+java.vendor=Eclipse Adoptium
+BootLoader constants: OS=macosx, ARCH=aarch64, WS=cocoa, NL=fr_FR
+Framework arguments:  -keyring /Users/math/.eclipse_keyring
+Command-line arguments:  -os macosx -ws cocoa -arch aarch64 -keyring /Users/math/.eclipse_keyring
+
+!ENTRY com.st.stm32cube.ide.mcu.informationcenter 1 1 2026-04-16 10:59:17.664
+!MESSAGE Log4j2 initialized with config file /Users/math/Desktop/cours/S8/syst_uc/projet/.metadata/.log4j2.xml
+
+!ENTRY com.st.stm32cube.ide.mcu.ide 1 1 2026-04-16 10:59:20.351
+!MESSAGE Started RMI Server, listening on port 41337
+
+!ENTRY com.st.stm32cube.ide.mcu.debug.launch 2 0 2026-04-16 11:07:19.633
+!MESSAGE Won't launch debug session since we failed to locate the binary.
