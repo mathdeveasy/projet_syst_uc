@@ -95,6 +95,12 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+
+  int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16);
+  if (status!= 0)
+    {
+  	  Error_Handler();
+    }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -107,7 +113,7 @@ int main(void)
 	  HAL_GPIO_WritePin(GPIOB,GPIO_PIN_4, GPIO_PIN_RESET);
 	  HAL_Delay(1000);
 
-	  BME280_Measure(&Temperature, &Pressure, &Humidity); // mesure temp et pressure
+	  BME280_Measure(&Temperature, &Pressure, &Humidity);
 	  HAL_Delay (500);
 	  char mess[100];
 	  int len = sprintf(mess, "Temp: %.2f C | Press: %.2f hPa\r\n", Temperature, Pressure / 100.0f);
