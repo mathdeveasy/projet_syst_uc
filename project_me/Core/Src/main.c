@@ -23,6 +23,9 @@
 /* USER CODE BEGIN Includes */
 #include "BME280_STM32.h"
 #include "stdio.h"
+#include "fonts.h"
+#include "ssd1306.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -96,11 +99,27 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
-  int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16);
+
+  /*int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16);
   if (status!= 0)
     {
   	  Error_Handler();
-    }
+    */
+
+  // Petit délai pour que l'écran se réveille
+
+  //int status_ecran =SSD1306_Init ();// demarrer ecran
+  //if (status_ecran==0){
+	  //Error_Handler();
+  //}
+  	SSD1306_Init (); // initialise the display
+    SSD1306_GotoXY (10,10); // goto 10, 10
+    SSD1306_Puts ("HELLO", &Font_11x18, 1); // print Hello
+    SSD1306_GotoXY (10, 30);
+    SSD1306_Puts ("WORLD !!", &Font_11x18, 1);
+    SSD1306_UpdateScreen(); // update screen
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -113,12 +132,14 @@ int main(void)
 	  HAL_GPIO_WritePin(GPIOB,GPIO_PIN_4, GPIO_PIN_RESET);
 	  HAL_Delay(1000);
 
+
 	  BME280_Measure(&Temperature, &Pressure, &Humidity);
-	  HAL_Delay (500);
+
 	  char mess[100];
 	  int len = sprintf(mess, "Temp: %.2f C | Press: %.2f hPa\r\n", Temperature, Pressure / 100.0f);
 	  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
 	  HAL_Delay(1000);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -202,7 +223,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00B07CB4;
+  hi2c1.Init.Timing = 0x0060112F;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
