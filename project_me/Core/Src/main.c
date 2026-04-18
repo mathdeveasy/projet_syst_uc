@@ -25,6 +25,8 @@
 #include "stdio.h"
 #include "fonts.h"
 #include "ssd1306.h"
+#include "icm20948.h"
+#include "math.h"
 
 /* USER CODE END Includes */
 
@@ -46,9 +48,16 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
+SPI_HandleTypeDef hspi1;
+
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+axises my_gyro;
+axises my_accel;
+axises my_mag;
+float roll, pitch;
+char mess[200];
 
 /* USER CODE END PV */
 
@@ -57,13 +66,14 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
- float Temperature, Pressure, Humidity;
+
 /* USER CODE END 0 */
 
 /**
@@ -97,27 +107,36 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_I2C1_Init();
+  MX_SPI1_Init();
+
   /* USER CODE BEGIN 2 */
 
 
-  /*int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16);
+  int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16); // demarrage bmp280
   if (status!= 0)
     {
   	  Error_Handler();
-    */
+    }
 
-  // Petit délai pour que l'écran se réveille
 
-  //int status_ecran =SSD1306_Init ();// demarrer ecran
-  //if (status_ecran==0){
-	  //Error_Handler();
-  //}
-  	SSD1306_Init (); // initialise the display
-    SSD1306_GotoXY (10,10); // goto 10, 10
-    SSD1306_Puts ("test", &Font_11x18, 1); // print Hello
-    SSD1306_GotoXY (10, 30);
-    SSD1306_Puts ("valide !!", &Font_11x18, 1);
-    SSD1306_UpdateScreen(); // update screen
+  int status_ecran =SSD1306_Init ();// demarrer ecran
+  if (status_ecran==0){
+	  Error_Handler();
+  }
+
+  SSD1306_Init (); // initialiser l'ecran
+
+  icm20948_init(); // initialiser gyro et accelero
+  ak09916_init(); // initialiser magneto
+
+
+  SSD1306_GotoXY (10,10); // goto 10, 10
+  SSD1306_Puts ("test", &Font_11x18, 1); // print Hello
+  SSD1306_GotoXY (10, 30);
+  SSD1306_Puts ("valide !!", &Font_11x18, 1);
+  SSD1306_UpdateScreen(); // update screen
+
+
 
 
   /* USER CODE END 2 */
@@ -127,18 +146,26 @@ int main(void)
   while (1)
   {
 
-	  HAL_GPIO_WritePin(GPIOB,GPIO_PIN_4, GPIO_PIN_SET);
-	  HAL_Delay(1000);
-	  HAL_GPIO_WritePin(GPIOB,GPIO_PIN_4, GPIO_PIN_RESET);
-	  HAL_Delay(1000);
+	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_4);
 
 
-	  BME280_Measure(&Temperature, &Pressure, &Humidity);
+	  BME280_Measure(&Temperature, &Pressure, &Humidity); //mesure temp
 
-	  char mess[100];
-	  int len = sprintf(mess, "Temp: %.2f C | Press: %.2f hPa\r\n", Temperature, Pressure / 100.0f);
+	  icm20948_gyro_read_dps(&my_gyro); // mesures icm20948
+	  icm20948_accel_read_g(&my_accel);
+	  ak09916_mag_read_uT(&my_mag);
+
+
+	  // calcul des angles pithc et roll avec la trigo
+	  roll = atan2(my_accel.y, my_accel.z) * 180.0 / M_PI;
+	  pitch = atan2(-my_accel.x, my_accel.z) * 180.0 / M_PI;
+
+
+
+	  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f°\r\n", roll, pitch);
 	  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
-	  HAL_Delay(1000);
+
+	  HAL_Delay(100);
 
     /* USER CODE END WHILE */
 
@@ -256,6 +283,46 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 7;
+  hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -308,7 +375,17 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LD3_Pin|GPIO_PIN_4, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : SPI_CS_Pin */
+  GPIO_InitStruct.Pin = SPI_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(SPI_CS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD3_Pin PB4 */
   GPIO_InitStruct.Pin = LD3_Pin|GPIO_PIN_4;
