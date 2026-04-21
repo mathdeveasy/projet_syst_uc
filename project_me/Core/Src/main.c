@@ -56,7 +56,7 @@ UART_HandleTypeDef huart2;
 axises my_gyro;
 axises my_accel;
 axises my_mag;
-float roll, pitch;
+float roll, pitch, yaw;
 char mess[200];
 
 /* USER CODE END PV */
@@ -162,7 +162,12 @@ int main(void)
 
 
 
-	  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f°\r\n", roll, pitch);
+	  // Tangage
+
+	  pitch = atan2(-my_accel.x,  my_accel.z) * 180.0 / M_PI;
+
+
+	  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n ", roll, pitch, yaw);
 	  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
 
 	  HAL_Delay(100);

@@ -497,7 +497,7 @@ static uint8_t read_single_ak09916_reg(uint8_t reg)
 	write_single_icm20948_reg(ub_3, B3_I2C_SLV0_REG, reg);
 	write_single_icm20948_reg(ub_3, B3_I2C_SLV0_CTRL, 0x81);
 
-	HAL_Delay(1);
+	HAL_Delay(2);
 	return read_single_icm20948_reg(ub_0, B0_EXT_SLV_SENS_DATA_00);
 }
 
