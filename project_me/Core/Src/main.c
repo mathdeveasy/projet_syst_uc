@@ -156,15 +156,11 @@ int main(void)
 	  ak09916_mag_read_uT(&my_mag);
 
 
-	  // calcul des angles pithc et roll avec la trigo
+	  // calcul des angles pithc et roll et yaw avec la trigo
 	  roll = atan2(my_accel.y, my_accel.z) * 180.0 / M_PI;
 	  pitch = atan2(-my_accel.x, my_accel.z) * 180.0 / M_PI;
+	  yaw = atan2(my_mag.y, my_mag.x) * 180.0 / M_PI;
 
-
-
-	  // Tangage
-
-	  pitch = atan2(-my_accel.x,  my_accel.z) * 180.0 / M_PI;
 
 
 	  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n ", roll, pitch, yaw);
