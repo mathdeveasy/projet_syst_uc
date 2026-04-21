@@ -56,6 +56,7 @@ UART_HandleTypeDef huart2;
 axises my_gyro;
 axises my_accel;
 axises my_mag;
+float Humidity, Pressure, Temperature;
 float roll, pitch, yaw;
 char mess[200];
 
@@ -119,12 +120,11 @@ int main(void)
     }
 
 
-  int status_ecran =SSD1306_Init ();// demarrer ecran
+  int status_ecran = SSD1306_Init ();// demarrer ecran
   if (status_ecran==0){
 	  Error_Handler();
   }
 
-  SSD1306_Init (); // initialiser l'ecran
 
   icm20948_init(); // initialiser gyro et accelero
   ak09916_init(); // initialiser magneto
@@ -156,14 +156,14 @@ int main(void)
 	  ak09916_mag_read_uT(&my_mag);
 
 
-	  // calcul des angles pithc et roll et yaw avec la trigo
+	  // calcul des angles pitch et roll et yaw avec la trigo
 	  roll = atan2(my_accel.y, my_accel.z) * 180.0 / M_PI;
 	  pitch = atan2(-my_accel.x, my_accel.z) * 180.0 / M_PI;
 	  yaw = atan2(my_mag.y, my_mag.x) * 180.0 / M_PI;
 
 
 
-	  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n ", roll, pitch, yaw);
+	  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n BMP280-> Temp: %.2f | Pressure: %.2f \r\n", roll, pitch, yaw, Temperature, Pressure);
 	  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
 
 	  HAL_Delay(100);
