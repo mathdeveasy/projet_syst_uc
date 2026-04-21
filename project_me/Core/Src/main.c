@@ -113,17 +113,26 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
+
+
+
+
   int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16); // demarrage bmp280
   if (status!= 0)
     {
   	  Error_Handler();
     }
 
+  uint8_t chipID = 0;
+  HAL_I2C_Mem_Read(&hi2c1, 0xEC, 0xD0, 1, &chipID, 1, 100);
 
-  int status_ecran = SSD1306_Init ();// demarrer ecran
+
+
+  /*int status_ecran = SSD1306_Init ();// demarrer ecran
   if (status_ecran==0){
 	  Error_Handler();
   }
+  */
 
 
   icm20948_init(); // initialiser gyro et accelero
