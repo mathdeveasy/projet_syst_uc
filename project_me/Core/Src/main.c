@@ -113,7 +113,10 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-
+  int status_ecran = SSD1306_Init ();// demarrer ecran
+    if (status_ecran==0){
+  	  Error_Handler();
+    }
 
 
 
@@ -123,20 +126,12 @@ int main(void)
   	  Error_Handler();
     }
 
-  uint8_t chipID = 0;
-  HAL_I2C_Mem_Read(&hi2c1, 0xEC, 0xD0, 1, &chipID, 1, 100);
 
-
-
-  /*int status_ecran = SSD1306_Init ();// demarrer ecran
-  if (status_ecran==0){
-	  Error_Handler();
-  }
-  */
 
 
   icm20948_init(); // initialiser gyro et accelero
   ak09916_init(); // initialiser magneto
+
 
 
   SSD1306_GotoXY (10,10); // goto 10, 10
@@ -152,22 +147,27 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
   while (1)
   {
 
 	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_4);
-
-
-	  BME280_Measure(&Temperature, &Pressure, &Humidity); //mesure temp
 
 	  icm20948_gyro_read_dps(&my_gyro); // mesures icm20948
 	  icm20948_accel_read_g(&my_accel);
 	  ak09916_mag_read_uT(&my_mag);
 
 
+
+	  BME280_Measure(&Temperature, &Pressure, &Humidity); //mesure temp
+
+	  HAL_Delay(50);
+
+
+
 	  // calcul des angles pitch et roll et yaw avec la trigo
 	  roll = atan2(my_accel.y, my_accel.z) * 180.0 / M_PI;
-	  pitch = atan2(-my_accel.x, my_accel.z) * 180.0 / M_PI;
+	  pitch = atan2(my_accel.x, my_accel.z) * 180.0 / M_PI;
 	  yaw = atan2(my_mag.y, my_mag.x) * 180.0 / M_PI;
 
 
@@ -410,6 +410,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
 
 /* USER CODE END 4 */
 
