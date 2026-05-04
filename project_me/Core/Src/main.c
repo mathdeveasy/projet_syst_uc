@@ -18,9 +18,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include <string.h>
+#include <stdarg.h>
 #include "BME280_STM32.h"
 #include "stdio.h"
 #include "fonts.h"
@@ -59,6 +63,7 @@ axises my_mag;
 float Humidity, Pressure, Temperature;
 float roll, pitch, yaw;
 char mess[200];
+void myprintf(const char *fmt, ...);
 
 /* USER CODE END PV */
 
@@ -74,6 +79,17 @@ static void MX_SPI1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void myprintf(const char *fmt, ...) {
+  static char buffer[256];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buffer, sizeof(buffer), fmt, args);
+  va_end(args);
+
+  int len = strlen(buffer);
+  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, -1);
+
+}
 
 /* USER CODE END 0 */
 
@@ -109,7 +125,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   MX_SPI1_Init();
-
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
 
@@ -134,11 +150,124 @@ int main(void)
 
 
 
+
   SSD1306_GotoXY (10,10); // goto 10, 10
   SSD1306_Puts ("test", &Font_11x18, 1); // print Hello
   SSD1306_GotoXY (10, 30);
   SSD1306_Puts ("valide !!", &Font_11x18, 1);
   SSD1306_UpdateScreen(); // update screen
+
+
+
+  myprintf("\r\n~ GESTION CARTE SD ~\r\n\r\n");
+
+   HAL_Delay(5000); //a short delay is important to let the SD card settle
+
+   //some variables for FatFs
+   FATFS FatFs; 	//Fatfs handle
+   FIL fil; 		//File handle
+   FRESULT fres; //Result after operations
+
+   // Test debug SPI brut
+   myprintf("Testing SPI communication...\r\n");
+
+    //Force CS high
+   HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_SET);
+   HAL_Delay(10);
+
+   // Envoie 10 octets 0xFF et affiche ce qu'on reçoit
+   uint8_t tx = 0xFF, rx = 0x00;
+   myprintf("Dummy bytes received: ");
+   for(int i = 0; i < 10; i++) {
+       HAL_SPI_TransmitReceive(&hspi1, &tx, &rx, 1, 100);
+       myprintf("%02X ", rx);
+   }
+   myprintf("\r\n");
+
+   // Force CS low et envoie CMD0
+   HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_RESET);
+   HAL_Delay(1);
+   uint8_t cmd0[] = {0x40, 0x00, 0x00, 0x00, 0x00, 0x95};
+   uint8_t resp[7] = {0};
+   HAL_SPI_Transmit(&hspi1, cmd0, 6, 100);
+   // Lire 7 octets de réponse
+   for(int i = 0; i < 7; i++) {
+       HAL_SPI_TransmitReceive(&hspi1, &tx, &resp[i], 1, 100);
+       myprintf("resp[%d] = %02X\r\n", i, resp[i]);
+   }
+   HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_SET);
+
+
+   //Open the file system
+   fres = f_mount(&FatFs, "", 1); //1=mount now
+   if (fres != FR_OK) {
+ 	myprintf("f_mount error (%i)\r\n", fres);
+ 	while(1);
+   }
+
+//   //Let's get some statistics from the SD card
+   DWORD free_clusters, free_sectors, total_sectors;
+
+   FATFS* getFreeFs;
+
+   fres = f_getfree("", &free_clusters, &getFreeFs);
+   if (fres != FR_OK) {
+ 	myprintf("f_getfree error (%i)\r\n", fres);
+ 	while(1);
+   }
+
+   //Formula comes from ChaN's documentation
+   total_sectors = (getFreeFs->n_fatent - 2) * getFreeFs->csize;
+   free_sectors = free_clusters * getFreeFs->csize;
+
+   myprintf("SD card stats:\r\n%10lu KiB total drive space.\r\n%10lu KiB available.\r\n", total_sectors / 2, free_sectors / 2);
+
+   //Now let's try to open file "test.txt"
+   fres = f_open(&fil, "write.txt", FA_READ);
+   if (fres != FR_OK) {
+	   myprintf("f_open error (%i)\r\n", fres);
+	   while(1);
+   }
+   myprintf("I was able to open 'write.txt' for reading!\r\n");
+
+   //Read 30 bytes from "test.txt" on the SD card
+   BYTE readBuf[30];
+
+   //We can either use f_read OR f_gets to get data out of files
+   //f_gets is a wrapper on f_read that does some string formatting for us
+   TCHAR* rres = f_gets((TCHAR*)readBuf, 30, &fil);
+   if(rres != 0) {
+	   myprintf("Read string from 'bees.txt' contents: %s\r\n", readBuf);
+   } else {
+	   myprintf("f_gets error (%i)\r\n", fres);
+   }
+
+   //Be a tidy kiwi - don't forget to close your file!
+   f_close(&fil);
+
+   //Now let's try and write a file "write.txt"
+     fres = f_open(&fil, "write.txt", FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
+     if(fres == FR_OK) {
+   	myprintf("I was able to open 'write.txt' for writing\r\n");
+     } else {
+   	myprintf("f_open error (%i)\r\n", fres);
+     }
+
+     //Copy in a string
+     strncpy((char*)readBuf, "a new file is made!", 19);
+     UINT bytesWrote;
+     fres = f_write(&fil, readBuf, 19, &bytesWrote);
+     if(fres == FR_OK) {
+   	myprintf("Wrote %i bytes to 'write.txt'!\r\n", bytesWrote);
+     } else {
+   	myprintf("f_write error (%i)\r\n", fres);
+     }
+
+     //Be a tidy kiwi - don't forget to close your file!
+     f_close(&fil);
+
+     //We're done, so de-mount the drive
+     f_mount(NULL, "", 0);
 
 
 
@@ -166,6 +295,7 @@ int main(void)
 
 
 	  // calcul des angles pitch et roll et yaw avec la trigo
+	  // marche mais le capteur doit etre initialisé dans le bon sens
 	  roll = atan2(my_accel.y, my_accel.z) * 180.0 / M_PI;
 	  pitch = atan2(my_accel.x, my_accel.z) * 180.0 / M_PI;
 	  yaw = atan2(my_mag.y, my_mag.x) * 180.0 / M_PI;
@@ -175,7 +305,8 @@ int main(void)
 	  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n BMP280-> Temp: %.2f | Pressure: %.2f \r\n", roll, pitch, yaw, Temperature, Pressure);
 	  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
 
-	  HAL_Delay(100);
+	  HAL_Delay(1000);
+
 
     /* USER CODE END WHILE */
 
@@ -312,16 +443,16 @@ static void MX_SPI1_Init(void)
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
-  hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi1.Init.CRCPolynomial = 7;
   hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
   if (HAL_SPI_Init(&hspi1) != HAL_OK)
   {
     Error_Handler();
@@ -393,7 +524,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin : SPI_CS_Pin */
   GPIO_InitStruct.Pin = SPI_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(SPI_CS_GPIO_Port, &GPIO_InitStruct);
 
