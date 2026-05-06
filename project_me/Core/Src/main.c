@@ -222,7 +222,7 @@ int main(void)
 
    myprintf("SD card stats:\r\n%10lu KiB total drive space.\r\n%10lu KiB available.\r\n", total_sectors / 2, free_sectors / 2);
 
-   //Now let's try to open file "test.txt"
+   //Now let's try to open file "write.txt"
    fres = f_open(&fil, "write.txt", FA_READ);
    if (fres != FR_OK) {
 	   myprintf("f_open error (%i)\r\n", fres);
@@ -230,14 +230,14 @@ int main(void)
    }
    myprintf("I was able to open 'write.txt' for reading!\r\n");
 
-   //Read 30 bytes from "test.txt" on the SD card
+   //Read 30 bytes from "write.txt" on the SD card
    BYTE readBuf[30];
 
    //We can either use f_read OR f_gets to get data out of files
    //f_gets is a wrapper on f_read that does some string formatting for us
    TCHAR* rres = f_gets((TCHAR*)readBuf, 30, &fil);
    if(rres != 0) {
-	   myprintf("Read string from 'bees.txt' contents: %s\r\n", readBuf);
+	   myprintf("Read string from 'write.txt' contents: %s\r\n", readBuf);
    } else {
 	   myprintf("f_gets error (%i)\r\n", fres);
    }
@@ -246,19 +246,19 @@ int main(void)
    f_close(&fil);
 
    //Now let's try and write a file "write.txt"
-     fres = f_open(&fil, "write.txt", FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
+     fres = f_open(&fil, "testf.txt", FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
      if(fres == FR_OK) {
-   	myprintf("I was able to open 'write.txt' for writing\r\n");
+   	myprintf("I was able to open 'testf.txt' for writing\r\n");
      } else {
    	myprintf("f_open error (%i)\r\n", fres);
      }
 
      //Copy in a string
-     strncpy((char*)readBuf, "a new file is made!", 19);
+     strncpy((char*)readBuf, "ca marche tres bien hugo cuck", 31);
      UINT bytesWrote;
-     fres = f_write(&fil, readBuf, 19, &bytesWrote);
+     fres = f_write(&fil, readBuf, 31, &bytesWrote);
      if(fres == FR_OK) {
-   	myprintf("Wrote %i bytes to 'write.txt'!\r\n", bytesWrote);
+   	myprintf("Wrote %i bytes to 'testf.txt'!\r\n", bytesWrote);
      } else {
    	myprintf("f_write error (%i)\r\n", fres);
      }
@@ -295,7 +295,7 @@ int main(void)
 
 
 	  // calcul des angles pitch et roll et yaw avec la trigo
-	  // marche mais le capteur doit etre initialisé dans le bon sens
+	  // marche mais le capteur doit etre initialisé dans le bon sens@	@
 	  roll = atan2(my_accel.y, my_accel.z) * 180.0 / M_PI;
 	  pitch = atan2(my_accel.x, my_accel.z) * 180.0 / M_PI;
 	  yaw = atan2(my_mag.y, my_mag.x) * 180.0 / M_PI;
