@@ -20,6 +20,8 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32l4xx_it.h"
+#include "BME280_STM32.h"
+#include "icm20948.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -55,8 +57,13 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-
+extern TIM_HandleTypeDef htim2;
 /* USER CODE BEGIN EV */
+extern axises my_gyro;
+extern axises my_accel;
+extern axises my_mag;
+extern float Humidity, Pressure, Temperature;
+extern float roll, pitch, yaw;
 
 /* USER CODE END EV */
 
@@ -197,6 +204,28 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32l4xx.s).                    */
 /******************************************************************************/
+
+/**
+  * @brief This function handles TIM2 global interrupt.
+  */
+void TIM2_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM2_IRQn 0 */
+
+  /* USER CODE END TIM2_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim2);
+
+  /* USER CODE BEGIN TIM2_IRQn 1 */
+  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_4); //toggle pin pour voir si ca marche bien visuellement
+
+  icm20948_gyro_read_dps(&my_gyro); // mesures icm20948
+  icm20948_accel_read_g(&my_accel);
+  //ak09916_mag_read_uT(&my_mag);
+
+  BME280_Measure(&Temperature, &Pressure, &Humidity); //mesure temp
+
+  /* USER CODE END TIM2_IRQn 1 */
+}
 
 /* USER CODE BEGIN 1 */
 
