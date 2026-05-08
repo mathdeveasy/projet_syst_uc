@@ -64,7 +64,17 @@ axises my_accel;
 axises my_mag;
 float Humidity, Pressure, Temperature;
 float roll, pitch, yaw;
+
+int place_totale;
+int place_dispo;
+
+int update_screen;
+int update_arinc;
+int switch_ecran;
+
+
 char mess[200];
+char buffer_ecriture_ecran[50];
 void myprintf(const char *fmt, ...);
 
 /* USER CODE END PV */
@@ -132,13 +142,12 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
+  // ----------------- SEQUENCE D'INITIALISATION DES CAPTEURS ---------------------------
 
   int status_ecran = SSD1306_Init ();// demarrer ecran
     if (status_ecran==0){
   	  Error_Handler();
     }
-
-
 
   int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16); // demarrage bmp280
   if (status!= 0)
@@ -146,136 +155,193 @@ int main(void)
   	  Error_Handler();
     }
 
-
-
-
   icm20948_init(); // initialiser gyro et accelero
   ak09916_init(); // initialiser magneto
 
 
 
-
-  SSD1306_GotoXY (10,10); // goto 10, 10
-  SSD1306_Puts ("test", &Font_11x18, 1); // print Hello
-  SSD1306_GotoXY (10, 30);
-  SSD1306_Puts ("valide !!", &Font_11x18, 1);
+  SSD1306_Clear();
+  SSD1306_GotoXY (0,10); // va a la pos (0,10)
+  SSD1306_Puts ("Initialisation en cours !", &Font_5x7, 1);
+  SSD1306_GotoXY (0, 20);
+  SSD1306_Puts ("Banc de test avionique.", &Font_5x7, 1);
   SSD1306_UpdateScreen(); // update screen
 
 
 
+  HAL_Delay(3000); // delay pour calmer le jeu, surtout pour la carte sd
+
+  // ----------------- FIN SEQUENCE D'INITIALISATION DES CAPTEURS ---------------------------
+
+
+  // -------------------------- TEST SPI ------------------------------
+
+  myprintf("TEST SPI EN COURS ...\r\n");
+
+  SSD1306_GotoXY (0,40); // va a la pos (0,10)
+  SSD1306_Puts ("TEST SPI EN COURS !", &Font_5x7, 1);
+  SSD1306_UpdateScreen(); // update screen
+  HAL_Delay(1000);
+
+
+  //Force CS high
+  HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_SET);
+  HAL_Delay(10);
+
+  // Envoie 10 octets 0xFF et affiche ce qu'on reçoit
+  uint8_t tx = 0xFF, rx = 0x00;
+  myprintf("Dummy bytes received: ");
+  for(int i = 0; i < 10; i++) {
+	  HAL_SPI_TransmitReceive(&hspi1, &tx, &rx, 1, 100);
+	  myprintf("%02X ", rx);
+  }
+  myprintf("\r\n");
+
+  // Force CS low et envoie CMD0
+  HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_RESET);
+  HAL_Delay(1);
+  uint8_t cmd0[] = {0x40, 0x00, 0x00, 0x00, 0x00, 0x95};
+  uint8_t resp[7] = {0};
+  HAL_SPI_Transmit(&hspi1, cmd0, 6, 100);
+  // Lire 7 octets de réponse
+  for(int i = 0; i < 7; i++) {
+	  HAL_SPI_TransmitReceive(&hspi1, &tx, &resp[i], 1, 100);
+	  myprintf("resp[%d] = %02X\r\n", i, resp[i]);
+  }
+  HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_SET);
+
+  SSD1306_GotoXY (0,50); // va a la pos (0,50)
+  SSD1306_Puts ("OK !", &Font_5x7, 1);
+  SSD1306_UpdateScreen(); // update screen
+  HAL_Delay(1000);
+
+  SSD1306_GotoXY (0,50); // on fait ca supprimer le "ok" avant la routine d'init de la carte SD
+  SSD1306_Puts ("     ", &Font_5x7, 1);
+
+  // --------------------------- FIN DU TEST SPI ------------------------------
+
+  // --------------------------- GESTION CARTE SD ------------------------------------
+
+
   myprintf("\r\n~ GESTION CARTE SD ~\r\n\r\n");
 
-   HAL_Delay(5000); //a short delay is important to let the SD card settle
+  SSD1306_GotoXY (0,40); // va a la pos (0,10)
+  SSD1306_Puts ("TEST CARTE SD EN COURS !", &Font_5x7, 1);
+  SSD1306_UpdateScreen(); // update screen
+  HAL_Delay(1000);
 
-   //some variables for FatFs
-   FATFS FatFs; 	//Fatfs handle
-   FIL fil; 		//File handle
-   FRESULT fres; //Result after operations
-
-   // Test debug SPI brut
-   myprintf("Testing SPI communication...\r\n");
-
-    //Force CS high
-   HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_SET);
-   HAL_Delay(10);
-
-   // Envoie 10 octets 0xFF et affiche ce qu'on reçoit
-   uint8_t tx = 0xFF, rx = 0x00;
-   myprintf("Dummy bytes received: ");
-   for(int i = 0; i < 10; i++) {
-       HAL_SPI_TransmitReceive(&hspi1, &tx, &rx, 1, 100);
-       myprintf("%02X ", rx);
-   }
-   myprintf("\r\n");
-
-   // Force CS low et envoie CMD0
-   HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_RESET);
-   HAL_Delay(1);
-   uint8_t cmd0[] = {0x40, 0x00, 0x00, 0x00, 0x00, 0x95};
-   uint8_t resp[7] = {0};
-   HAL_SPI_Transmit(&hspi1, cmd0, 6, 100);
-   // Lire 7 octets de réponse
-   for(int i = 0; i < 7; i++) {
-       HAL_SPI_TransmitReceive(&hspi1, &tx, &resp[i], 1, 100);
-       myprintf("resp[%d] = %02X\r\n", i, resp[i]);
-   }
-   HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_SET);
+  //some variables for FatFs
+    FATFS FatFs; 	//Fatfs handle
+    FIL fil; 		//File handle
+    FRESULT fres; //Result after operations
 
 
-   //Open the file system
-   fres = f_mount(&FatFs, "", 1); //1=mount now
-   if (fres != FR_OK) {
- 	myprintf("f_mount error (%i)\r\n", fres);
- 	while(1);
-   }
+  //Open the file system
+  fres = f_mount(&FatFs, "", 1); //1=mount now
+  if (fres != FR_OK) {
+	  myprintf("f_mount error (%i)\r\n", fres);
+	  while(1);
+  }
 
-//   //Let's get some statistics from the SD card
-   DWORD free_clusters, free_sectors, total_sectors;
+  //   //Let's get some statistics from the SD card
+  DWORD free_clusters, free_sectors, total_sectors;
 
-   FATFS* getFreeFs;
+  FATFS* getFreeFs;
 
-   fres = f_getfree("", &free_clusters, &getFreeFs);
-   if (fres != FR_OK) {
- 	myprintf("f_getfree error (%i)\r\n", fres);
- 	while(1);
-   }
+  fres = f_getfree("", &free_clusters, &getFreeFs);
+  if (fres != FR_OK) {
+	  myprintf("f_getfree error (%i)\r\n", fres);
+	  while(1);
+  }
 
-   //Formula comes from ChaN's documentation
-   total_sectors = (getFreeFs->n_fatent - 2) * getFreeFs->csize;
-   free_sectors = free_clusters * getFreeFs->csize;
+  //Formula comes from ChaN's documentation
+  total_sectors = (getFreeFs->n_fatent - 2) * getFreeFs->csize;
+  free_sectors = free_clusters * getFreeFs->csize;
 
-   myprintf("SD card stats:\r\n%10lu KiB total drive space.\r\n%10lu KiB available.\r\n", total_sectors / 2, free_sectors / 2);
+  myprintf("SD card stats:\r\n%10lu KiB total drive space.\r\n%10lu KiB available.\r\n", total_sectors / 2, free_sectors / 2);
 
-   //Now let's try to open file "write.txt"
-   fres = f_open(&fil, "write.txt", FA_READ);
-   if (fres != FR_OK) {
-	   myprintf("f_open error (%i)\r\n", fres);
-	   while(1);
-   }
-   myprintf("I was able to open 'write.txt' for reading!\r\n");
+  place_totale=total_sectors/2;
+  place_dispo=free_sectors/2;
 
-   //Read 30 bytes from "write.txt" on the SD card
-   BYTE readBuf[30];
+  //Now let's try to open file "write.txt"
+  fres = f_open(&fil, "write.txt", FA_READ);
+  if (fres != FR_OK) {
+	  myprintf("f_open error (%i)\r\n", fres);
+	  while(1);
+  }
+  myprintf("I was able to open 'write.txt' for reading!\r\n");
 
-   //We can either use f_read OR f_gets to get data out of files
-   //f_gets is a wrapper on f_read that does some string formatting for us
-   TCHAR* rres = f_gets((TCHAR*)readBuf, 30, &fil);
-   if(rres != 0) {
-	   myprintf("Read string from 'write.txt' contents: %s\r\n", readBuf);
-   } else {
-	   myprintf("f_gets error (%i)\r\n", fres);
-   }
+  //Read 30 bytes from "write.txt" on the SD card
+  BYTE readBuf[30];
 
-   //Be a tidy kiwi - don't forget to close your file!
-   f_close(&fil);
+  //We can either use f_read OR f_gets to get data out of files
+  //f_gets is a wrapper on f_read that does some string formatting for us
+  TCHAR* rres = f_gets((TCHAR*)readBuf, 30, &fil);
+  if(rres != 0) {
+	  myprintf("Read string from 'write.txt' contents: %s\r\n", readBuf);
+  } else {
+	  myprintf("f_gets error (%i)\r\n", fres);
+  }
 
-   //Now let's try and write a file "write.txt"
-     fres = f_open(&fil, "testf.txt", FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
-     if(fres == FR_OK) {
-   	myprintf("I was able to open 'testf.txt' for writing\r\n");
-     } else {
-   	myprintf("f_open error (%i)\r\n", fres);
-     }
+  //Be a tidy kiwi - don't forget to close your file!
+  f_close(&fil);
 
-     //Copy in a string
-     strncpy((char*)readBuf, "ca marche tres bien hugo cuck", 31);
-     UINT bytesWrote;
-     fres = f_write(&fil, readBuf, 31, &bytesWrote);
-     if(fres == FR_OK) {
-   	myprintf("Wrote %i bytes to 'testf.txt'!\r\n", bytesWrote);
-     } else {
-   	myprintf("f_write error (%i)\r\n", fres);
-     }
+  //Now let's try and write a file "testf.txt"
+  fres = f_open(&fil, "testf.txt", FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
+  if(fres == FR_OK) {
+	  myprintf("I was able to open 'testf.txt' for writing\r\n");
+  } else {
+	  myprintf("f_open error (%i)\r\n", fres);
+  }
 
-     //Be a tidy kiwi - don't forget to close your file!
-     f_close(&fil);
+  //Copy in a string
+  strncpy((char*)readBuf, "ca marche tres bien hugo cuck", 31);
+  UINT bytesWrote;
+  fres = f_write(&fil, readBuf, 31, &bytesWrote);
+  if(fres == FR_OK) {
+	  myprintf("Wrote %i bytes to 'testf.txt'!\r\n", bytesWrote);
+  } else {
+	  myprintf("f_write error (%i)\r\n", fres);
+  }
 
-     //We're done, so de-mount the drive
-     f_mount(NULL, "", 0);
+  //Be a tidy kiwi - don't forget to close your file!
+  f_close(&fil);
+
+  //We're done, so de-mount the drive
+  f_mount(NULL, "", 0);
 
 
 
-     HAL_TIM_Base_Start_IT(&htim2); //démarrage du timer
+  SSD1306_GotoXY(0,50); // va a la pos (0,50)
+  SSD1306_Puts("OK !", &Font_5x7, 1);
+  SSD1306_UpdateScreen(); // update screen
+  HAL_Delay(1000);
+
+  SSD1306_Clear();
+  SSD1306_GotoXY(0,0); // va a la pos (0,0)
+  SSD1306_Puts("STATS CARTE SD :", &Font_5x7, 1);
+
+  SSD1306_GotoXY(0,20); // va a la pos (0,20)
+  sprintf(buffer_ecriture_ecran, "TOTAL BITS : %d bits",place_totale);
+  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+  SSD1306_GotoXY(0,30); // va a la pos (0,30)
+  sprintf(buffer_ecriture_ecran, "BITS DISPO: %d bits ",place_dispo);
+  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+  SSD1306_UpdateScreen(); // update screen
+  HAL_Delay(5000);
+
+
+
+  // ---------------------------  FIN GESTION CARTE SD ------------------------------------
+
+
+
+
+
+  SSD1306_Clear();
+  HAL_TIM_Base_Start_IT(&htim2); //démarrage du timer
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -290,11 +356,59 @@ int main(void)
 	  yaw = atan2(my_mag.y, my_mag.x) * 180.0 / M_PI;
 
 
+	  if(update_screen == 1){
+		  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n BMP280-> Temp: %.2f | Pressure: %.2f \r\n", roll, pitch, yaw, Temperature, Pressure);
+		  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
 
-	  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n BMP280-> Temp: %.2f | Pressure: %.2f \r\n", roll, pitch, yaw, Temperature, Pressure);
-	  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
 
-	  HAL_Delay(1000);
+
+		  SSD1306_GotoXY(0,0); // goto 0, 0
+  		  SSD1306_Puts("BANC DE TEST AVION", &Font_7x10, 1);
+
+		  SSD1306_GotoXY(0,20); // goto 0, 10
+		  sprintf(buffer_ecriture_ecran, "ROLL: %.2f ", roll); // on stocke la donnée dans un buffer car la fonction attend un str en argument
+		  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1); // afficher angle
+
+		  SSD1306_GotoXY(0, 30);
+		  sprintf(buffer_ecriture_ecran, "PITCH: %.2f", pitch);
+		  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+		  SSD1306_GotoXY(0, 40);
+		  sprintf(buffer_ecriture_ecran, "YAW: %.2f ", yaw);
+		  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+		  SSD1306_GotoXY(0, 50);
+		  SSD1306_Puts("Cliquez pour + d'infos ", &Font_5x7, 1);
+
+		  SSD1306_UpdateScreen(); // update screen
+
+		  update_screen = 0;
+	  }
+
+	  if(switch_ecran == 1){
+
+		  SSD1306_Clear();
+		  SSD1306_GotoXY(0,0); // va a la pos (0,0)
+		  SSD1306_Puts("STATS CARTE SD :", &Font_5x7, 1);
+
+		  SSD1306_GotoXY(0,20); // va a la pos (0,20)
+		  sprintf(buffer_ecriture_ecran, "TOTAL BITS : %d bits",place_totale);
+		  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+		  SSD1306_GotoXY(0,30); // va a la pos (0,30)
+		  sprintf(buffer_ecriture_ecran, "BITS DISPO: %d bits ",place_dispo);
+		  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+		  SSD1306_UpdateScreen(); // update screen
+		  HAL_Delay(1000);
+		  SSD1306_Clear();
+
+		  switch_ecran = 0;
+
+	  }
+
+
+
 
 
     /* USER CODE END WHILE */
@@ -562,12 +676,22 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(SPI_CS_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PB1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /*Configure GPIO pins : LD3_Pin PB4 */
   GPIO_InitStruct.Pin = LD3_Pin|GPIO_PIN_4;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

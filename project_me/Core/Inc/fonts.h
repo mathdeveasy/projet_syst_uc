@@ -74,6 +74,12 @@ typedef struct {
  * @{
  */
 
+extern FontDef_t Font_3x5;
+/**
+ * @brief  5 x 7 pixels font size structure
+ */
+extern FontDef_t Font_5x7;
+
 /**
  * @brief  7 x 10 pixels font size structure
  */

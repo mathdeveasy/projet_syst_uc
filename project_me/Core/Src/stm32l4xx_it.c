@@ -20,10 +20,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32l4xx_it.h"
-#include "BME280_STM32.h"
-#include "icm20948.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "icm20948.h"
+#include "BME280_STM32.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -64,6 +64,9 @@ extern axises my_accel;
 extern axises my_mag;
 extern float Humidity, Pressure, Temperature;
 extern float roll, pitch, yaw;
+
+extern int update_screen;
+extern int switch_ecran;
 
 /* USER CODE END EV */
 
@@ -206,6 +209,21 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief This function handles EXTI line1 interrupt.
+  */
+void EXTI1_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI1_IRQn 0 */
+	switch_ecran = 1;
+
+  /* USER CODE END EXTI1_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
+  /* USER CODE BEGIN EXTI1_IRQn 1 */
+
+  /* USER CODE END EXTI1_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM2 global interrupt.
   */
 void TIM2_IRQHandler(void)
@@ -214,7 +232,6 @@ void TIM2_IRQHandler(void)
 
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);
-
   /* USER CODE BEGIN TIM2_IRQn 1 */
   HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_4); //toggle pin pour voir si ca marche bien visuellement
 
@@ -223,6 +240,8 @@ void TIM2_IRQHandler(void)
   //ak09916_mag_read_uT(&my_mag);
 
   BME280_Measure(&Temperature, &Pressure, &Humidity); //mesure temp
+
+  update_screen = 1;
 
   /* USER CODE END TIM2_IRQn 1 */
 }
