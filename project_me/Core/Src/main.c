@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include "BME280_STM32.h"
 #include "stdio.h"
 #include "fonts.h"
@@ -68,13 +69,22 @@ float roll, pitch, yaw;
 int place_totale;
 int place_dispo;
 
-int update_screen;
+int newdata;
 int update_arinc;
-int switch_ecran;
+int ecran_type;
+int last_ecran_type;
 
 
 char mess[200];
 char buffer_ecriture_ecran[50];
+
+//gestion de l'envoi sur carteSD
+uint16_t session_num = 0;
+char log_filename[20];
+char session_buf[10]={0};
+
+
+
 void myprintf(const char *fmt, ...);
 
 /* USER CODE END PV */
@@ -245,7 +255,6 @@ int main(void)
 
   //   //Let's get some statistics from the SD card
   DWORD free_clusters, free_sectors, total_sectors;
-
   FATFS* getFreeFs;
 
   fres = f_getfree("", &free_clusters, &getFreeFs);
@@ -295,9 +304,9 @@ int main(void)
   }
 
   //Copy in a string
-  strncpy((char*)readBuf, "ca marche tres bien hugo cuck", 31);
+  strncpy((char*)readBuf, "ca marche tres bien hugo cuck", 30);
   UINT bytesWrote;
-  fres = f_write(&fil, readBuf, 31, &bytesWrote);
+  fres = f_write(&fil, readBuf, 30, &bytesWrote);
   if(fres == FR_OK) {
 	  myprintf("Wrote %i bytes to 'testf.txt'!\r\n", bytesWrote);
   } else {
@@ -308,6 +317,40 @@ int main(void)
   f_close(&fil);
 
   //We're done, so de-mount the drive
+  f_mount(NULL, "", 0);
+
+  // -------------- ICI nous allons créer un fichier de gestion de version pour les fichiers de données
+
+  FIL fil_session;
+
+  f_mount(&FatFs, "", 1);
+
+  //ouvre le fichier et chope le numéro sur lequel on est
+  fres = f_open(&fil_session, "session.txt", FA_READ);
+  if (fres == FR_OK) {
+      f_gets(session_buf, sizeof(session_buf), &fil_session);
+      session_num = (uint16_t)atoi(session_buf);
+      f_close(&fil_session);
+  }
+
+  // incrémente et ecriture de la nouvelle valeur dans le fichier
+  session_num++;
+  fres = f_open(&fil_session, "session.txt", FA_WRITE | FA_CREATE_ALWAYS);
+  if (fres == FR_OK) {
+      f_printf(&fil_session, "%u", session_num);
+      f_close(&fil_session);
+  }
+
+  // construction du fichier de log avec le numero de session actuel
+  snprintf(log_filename, sizeof(log_filename), "log_%03u.csv", session_num);
+
+  // ecriture de l'entete du fichier
+  fres = f_open(&fil, log_filename, FA_WRITE | FA_CREATE_ALWAYS);
+  if (fres == FR_OK) {
+	  f_printf(&fil, "roll,pitch,yaw,temperature,pressure\n");
+	  f_close(&fil);
+  }
+
   f_mount(NULL, "", 0);
 
 
@@ -356,66 +399,104 @@ int main(void)
 	  yaw = atan2(my_mag.y, my_mag.x) * 180.0 / M_PI;
 
 
-	  if(update_screen == 1){
+	  if(newdata == 1){
+
+		  // -------------------- ENVOI DES DONNES --------------------------------
 		  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n BMP280-> Temp: %.2f | Pressure: %.2f \r\n", roll, pitch, yaw, Temperature, Pressure);
 		  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
 
 
+		  f_mount(&FatFs, "", 1);
+		  f_open(&fil, log_filename, FA_WRITE | FA_OPEN_ALWAYS);
+		  f_lseek(&fil, f_size(&fil)); // aller à la fin du fichier
 
-		  SSD1306_GotoXY(0,0); // goto 0, 0
-  		  SSD1306_Puts("BANC DE TEST AVION", &Font_7x10, 1);
+		  len = snprintf(mess, sizeof(mess), "%.2f,%.2f,%.2f,%.2f,%.2f\n",roll, pitch, yaw, Temperature, Pressure);
+		  UINT bw;
+		  f_write(&fil, mess, len, &bw);
+		  f_close(&fil);
+		  f_mount(NULL, "", 0);
 
-		  SSD1306_GotoXY(0,20); // goto 0, 10
-		  sprintf(buffer_ecriture_ecran, "ROLL: %.2f ", roll); // on stocke la donnée dans un buffer car la fonction attend un str en argument
-		  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1); // afficher angle
 
-		  SSD1306_GotoXY(0, 30);
-		  sprintf(buffer_ecriture_ecran, "PITCH: %.2f", pitch);
-		  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
 
-		  SSD1306_GotoXY(0, 40);
-		  sprintf(buffer_ecriture_ecran, "YAW: %.2f ", yaw);
-		  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
 
-		  SSD1306_GotoXY(0, 50);
-		  SSD1306_Puts("Cliquez pour + d'infos ", &Font_5x7, 1);
 
-		  SSD1306_UpdateScreen(); // update screen
+		  // -------------------- AFFICHAGE DES DONNES SUR ECRAN ----------------------------
+		  int page_changed = (ecran_type != last_ecran_type);
+		  if(page_changed) {
+		      SSD1306_Clear();
+		      last_ecran_type = ecran_type;
+		  }
 
-		  update_screen = 0;
+		  switch(ecran_type)
+		  {
+		  case 0:
+			  SSD1306_GotoXY(0,0); // goto 0, 0
+			  SSD1306_Puts("CENTRALE INERTIELLE", &Font_7x10, 1);
+
+			  SSD1306_GotoXY(0,20); // goto 0, 10
+			  sprintf(buffer_ecriture_ecran, "ROLL: %.2f ", roll); // on stocke la donnée dans un buffer car la fonction attend un str en argument
+			  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1); // afficher angle
+
+			  SSD1306_GotoXY(0, 30);
+			  sprintf(buffer_ecriture_ecran, "PITCH: %.2f", pitch);
+			  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+			  SSD1306_GotoXY(0, 40);
+			  sprintf(buffer_ecriture_ecran, "YAW: %.2f ", yaw);
+			  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+			  SSD1306_GotoXY(0, 50);
+			  SSD1306_Puts("Cliquez pour + d'infos ", &Font_5x7, 1);
+
+			  SSD1306_UpdateScreen(); // update screen
+			  break;
+
+		  case 1 :
+			  SSD1306_GotoXY(0,0); // va a la pos (0,0)
+			  SSD1306_Puts("VALEURS BMP 280 :", &Font_5x7, 1);
+
+			  SSD1306_GotoXY(0,20); // va a la pos (0,20)
+			  sprintf(buffer_ecriture_ecran, "Temp : %.1f degC",Temperature);
+			  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+			  SSD1306_GotoXY(0,30); // va a la pos (0,30)
+			  sprintf(buffer_ecriture_ecran, "Press: %.2f hPa ",Pressure/100);
+			  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+			  SSD1306_UpdateScreen(); // update screen
+			  break;
+
+		  case 2 :
+			  SSD1306_GotoXY(0,0); // va a la pos (0,0)
+			  SSD1306_Puts("STATS CARTE SD :", &Font_5x7, 1);
+
+			  SSD1306_GotoXY(0,20); // va a la pos (0,20)
+			  sprintf(buffer_ecriture_ecran, "TOTAL BITS : %d bits",place_totale);
+			  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+			  SSD1306_GotoXY(0,30); // va a la pos (0,30)
+			  sprintf(buffer_ecriture_ecran, "BITS DISPO: %d bits ",place_dispo);
+			  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
+
+			  SSD1306_UpdateScreen(); // update screen
+			  break;
+
+		  }
+
+		  newdata = 0;
+
+
+
+
+
+
+
+		  /* USER CODE END WHILE */
+
+		  /* USER CODE BEGIN 3 */
 	  }
-
-	  if(switch_ecran == 1){
-
-		  SSD1306_Clear();
-		  SSD1306_GotoXY(0,0); // va a la pos (0,0)
-		  SSD1306_Puts("STATS CARTE SD :", &Font_5x7, 1);
-
-		  SSD1306_GotoXY(0,20); // va a la pos (0,20)
-		  sprintf(buffer_ecriture_ecran, "TOTAL BITS : %d bits",place_totale);
-		  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
-
-		  SSD1306_GotoXY(0,30); // va a la pos (0,30)
-		  sprintf(buffer_ecriture_ecran, "BITS DISPO: %d bits ",place_dispo);
-		  SSD1306_Puts(buffer_ecriture_ecran, &Font_5x7, 1);
-
-		  SSD1306_UpdateScreen(); // update screen
-		  HAL_Delay(1000);
-		  SSD1306_Clear();
-
-		  switch_ecran = 0;
-
-	  }
-
-
-
-
-
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+	  /* USER CODE END 3 */
   }
-  /* USER CODE END 3 */
 }
 
 /**
@@ -477,14 +558,12 @@ void SystemClock_Config(void)
   */
   HAL_RCCEx_EnableMSIPLLMode();
 }
-
 /**
   * @brief I2C1 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_I2C1_Init(void)
-{
+static void MX_I2C1_Init(void){
 
   /* USER CODE BEGIN I2C1_Init 0 */
 

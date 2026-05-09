@@ -65,8 +65,8 @@ extern axises my_mag;
 extern float Humidity, Pressure, Temperature;
 extern float roll, pitch, yaw;
 
-extern int update_screen;
-extern int switch_ecran;
+extern int newdata;
+extern int ecran_type;
 
 /* USER CODE END EV */
 
@@ -213,11 +213,22 @@ void SysTick_Handler(void)
   */
 void EXTI1_IRQHandler(void)
 {
-  /* USER CODE BEGIN EXTI1_IRQn 0 */
-	switch_ecran = 1;
+	// Anti-rebond (a corriger)
+	    static uint32_t last_press = 0;
+	    uint32_t now = HAL_GetTick();
+
+	    if(now - last_press > 200) {  // 200ms de délai minimum entre deux appuis
+	        ecran_type += 1;
+	        if(ecran_type >= 3) {
+	            ecran_type = 0;
+	        }
+	        last_press = now;
+	    }
+
+	    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
 
   /* USER CODE END EXTI1_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
+
   /* USER CODE BEGIN EXTI1_IRQn 1 */
 
   /* USER CODE END EXTI1_IRQn 1 */
@@ -237,11 +248,11 @@ void TIM2_IRQHandler(void)
 
   icm20948_gyro_read_dps(&my_gyro); // mesures icm20948
   icm20948_accel_read_g(&my_accel);
-  //ak09916_mag_read_uT(&my_mag);
+  ak09916_mag_read_uT(&my_mag);
 
   BME280_Measure(&Temperature, &Pressure, &Humidity); //mesure temp
 
-  update_screen = 1;
+  newdata = 1;
 
   /* USER CODE END TIM2_IRQn 1 */
 }
