@@ -1,0 +1,6 @@
+#!/Users/math/Desktop/cours/S8/syst_uc/projet/venv/bin/python3.12
+import sys
+from serial.tools.miniterm import main
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(main())

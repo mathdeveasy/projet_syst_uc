@@ -57,6 +57,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
 /* USER CODE BEGIN EV */
 extern axises my_gyro;
@@ -67,6 +68,18 @@ extern float roll, pitch, yaw;
 
 extern int newdata;
 extern int ecran_type;
+
+extern uint32_t mot_arinc;
+extern int update_arinc;
+
+// on déclare tout en static, pour garder la valeur en stock peut importe les appels
+
+static uint32_t current_word = 0;
+static int bit_index = 0; // stocke a quelle bit du mot on est
+static int demi_bit = 0;  // si 1, pour envoyer le bit NULL
+static int sending = 0;   // permet de savoir si on a fini l'envoi
+static int attente= 0; 	  // pour temporiser 4 bits a l'etat NULL après l'envoi des 32bits du mot
+
 
 /* USER CODE END EV */
 
@@ -213,25 +226,85 @@ void SysTick_Handler(void)
   */
 void EXTI1_IRQHandler(void)
 {
-	// Anti-rebond (a corriger)
-	    static uint32_t last_press = 0;
-	    uint32_t now = HAL_GetTick();
+	/* USER CODE BEGIN EXTI1_IRQn 0 */
+	// fonction pour anti-rebounce
+	static uint32_t last_press = 0;
+	uint32_t now = HAL_GetTick();
 
-	    if(now - last_press > 200) {  // 200ms de délai minimum entre deux appuis
-	        ecran_type += 1;
-	        if(ecran_type >= 3) {
-	            ecran_type = 0;
-	        }
-	        last_press = now;
-	    }
+	if(now - last_press > 200) {  //
+		ecran_type += 1;
+		if(ecran_type >= 3) {
+			ecran_type = 0;
+		}
+		last_press = now;
+	}
 
-	    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
+	/* USER CODE END EXTI1_IRQn 0 */
+	HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
+	/* USER CODE BEGIN EXTI1_IRQn 1 */
 
-  /* USER CODE END EXTI1_IRQn 0 */
+	/* USER CODE END EXTI1_IRQn 1 */
+}
 
-  /* USER CODE BEGIN EXTI1_IRQn 1 */
+/**
+  * @brief This function handles TIM1 update interrupt and TIM16 global interrupt.
+  */
+void TIM1_UP_TIM16_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM1_UP_TIM16_IRQn 0 */
 
-  /* USER CODE END EXTI1_IRQn 1 */
+  /* USER CODE END TIM1_UP_TIM16_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim1);
+  /* USER CODE BEGIN TIM1_UP_TIM16_IRQn 1 */
+
+  //condition pour démarrer l'envoi
+  if(update_arinc == 1 && sending == 0) {
+         current_word = mot_arinc;
+         bit_index = 0;
+         demi_bit = 0;
+         sending = 1;
+         update_arinc = 0;
+     }
+
+  if(sending==1) {
+      if(attente > 0) {
+          // on veut temporiser pdt 4 bits entier (soit 8 demibits)
+          HAL_GPIO_WritePin(GPIOB, ARINC_A_Pin, GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(GPIOB, ARINC_B_Pin, GPIO_PIN_RESET);
+          attente--;
+
+          if(gap_count == 0) {
+              sending = 0;  // mot + attente terminé
+              bit_index = 0;
+          }
+
+      } else if(half_bit == 0) {
+          // première moitié — envoi de la valeur high ou low
+          uint8_t bit = (current_word >> bit_index) & 1;
+          if(bit == 1) {
+              HAL_GPIO_WritePin(GPIOB, ARINC_A_Pin, GPIO_PIN_SET);
+              HAL_GPIO_WritePin(GPIOB, ARINC_B_Pin, GPIO_PIN_RESET);
+          } else {
+              HAL_GPIO_WritePin(GPIOB, ARINC_A_Pin, GPIO_PIN_RESET);
+              HAL_GPIO_WritePin(GPIOB, ARINC_B_Pin, GPIO_PIN_SET);
+          }
+          demi_bit = 1; // permet de passer lors du tick de timer suivant a l'autre condition
+
+      } else {
+          // deuxième moitié — dnvoi de la valeur null
+          HAL_GPIO_WritePin(GPIOB, ARINC_A_Pin, GPIO_PIN_RESET);
+          HAL_GPIO_WritePin(GPIOB, ARINC_B_Pin, GPIO_PIN_RESET);
+          demi_bit = 0;
+          bit_index++;
+
+          if(bit_index >= 32) {
+              bit_index = 0;
+              attente = 8;  // on demarre les 8 demi périodes
+          }
+      }
+  }
+
+  /* USER CODE END TIM1_UP_TIM16_IRQn 1 */
 }
 
 /**

@@ -55,6 +55,7 @@ I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
 
+TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart2;
@@ -73,6 +74,8 @@ int newdata;
 int update_arinc;
 int ecran_type;
 int last_ecran_type;
+
+uint32_t mot_arinc; //utilisation de uint pour avoir un int non signé de 32 bits (equivalent unsigned long int)
 
 
 char mess[200];
@@ -96,23 +99,16 @@ static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
+void myprintf(const char *fmt, ...);
+uint32_t create_arincWord(uint8_t label,uint8_t sdi,uint32_t data, uint8_t ssm);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void myprintf(const char *fmt, ...) {
-  static char buffer[256];
-  va_list args;
-  va_start(args, fmt);
-  vsnprintf(buffer, sizeof(buffer), fmt, args);
-  va_end(args);
 
-  int len = strlen(buffer);
-  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, -1);
-
-}
 
 /* USER CODE END 0 */
 
@@ -150,6 +146,7 @@ int main(void)
   MX_SPI1_Init();
   MX_FATFS_Init();
   MX_TIM2_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
   // ----------------- SEQUENCE D'INITIALISATION DES CAPTEURS ---------------------------
@@ -159,7 +156,7 @@ int main(void)
   	  Error_Handler();
     }
 
-  int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16); // demarrage bmp280
+  int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16); // demarrage bmp280 avec parametres
   if (status!= 0)
     {
   	  Error_Handler();
@@ -384,7 +381,8 @@ int main(void)
 
 
   SSD1306_Clear();
-  HAL_TIM_Base_Start_IT(&htim2); //démarrage du timer
+  HAL_TIM_Base_Start_IT(&htim2); //démarrage du timer d'acquisition
+  HAL_TIM_Base_Start_IT(&htim1); //démarrage du timer d'envoi par arinc
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -409,14 +407,17 @@ int main(void)
 		  f_mount(&FatFs, "", 1);
 		  f_open(&fil, log_filename, FA_WRITE | FA_OPEN_ALWAYS);
 		  f_lseek(&fil, f_size(&fil)); // aller à la fin du fichier
-
 		  len = snprintf(mess, sizeof(mess), "%.2f,%.2f,%.2f,%.2f,%.2f\n",roll, pitch, yaw, Temperature, Pressure);
 		  UINT bw;
 		  f_write(&fil, mess, len, &bw);
 		  f_close(&fil);
 		  f_mount(NULL, "", 0);
 
+		  // ------------------- CREATION DU MOT ARINC429 ---------------------
 
+		  uint32_t press_arinc = Pressure; // on transforme le float en int
+		  mot_arinc = create_arincWord(0xFF, 0x0, press_arinc, 0x0); // on créé le mot arinc (j'utilise 0xFF et pas 0x100 car le label n'est codé que sur 8 bits (donc jusque 255))
+		  update_arinc = 1; // on dit que le nouveau mot est créé
 
 
 
@@ -491,12 +492,12 @@ int main(void)
 
 
 
-		  /* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-		  /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
 	  }
-	  /* USER CODE END 3 */
   }
+  /* USER CODE END 3 */
 }
 
 /**
@@ -558,12 +559,14 @@ void SystemClock_Config(void)
   */
   HAL_RCCEx_EnableMSIPLLMode();
 }
+
 /**
   * @brief I2C1 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_I2C1_Init(void){
+static void MX_I2C1_Init(void)
+{
 
   /* USER CODE BEGIN I2C1_Init 0 */
 
@@ -642,6 +645,53 @@ static void MX_SPI1_Init(void)
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
+  * @brief TIM1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM1_Init(void)
+{
+
+  /* USER CODE BEGIN TIM1_Init 0 */
+
+  /* USER CODE END TIM1_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 0;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 65535;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM1_Init 2 */
+
+  /* USER CODE END TIM1_Init 2 */
 
 }
 
@@ -769,7 +819,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 2, 0);
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 3, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -778,6 +828,47 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void myprintf(const char *fmt, ...) {
+  static char buffer[256];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buffer, sizeof(buffer), fmt, args);
+  va_end(args);
+
+  int len = strlen(buffer);
+  HAL_UART_Transmit(&huart2, (uint8_t*)buffer, len, -1);
+
+}
+
+uint32_t create_arincWord(uint8_t label,uint8_t sdi,uint32_t data, uint8_t ssm){
+
+	uint32_t word=0;
+	uint8_t somme;
+	uint8_t parity;
+
+	//on bouge les bits pour les placer au bon endroit sur notre mot
+	word |= ssm << 29;
+	word |= data << 10;
+	word |= sdi << 8;
+	word |= label << 0;
+
+	// CHECK PARITE (impaire dans le cadre de l'arinc 429)
+	for (int i = 0; i < 32; i++) {
+		somme += (word & (1 << i)) >> i;
+	}
+
+	if (somme % 2 == 0) {
+		//si Le nombre est pair : on rajoute 1
+		parity = 1;
+	} else {
+		parity = 0;
+		//le nombre est impair
+	}
+	// on ajoute notre parité
+	word |= parity << 31;
+
+	return word; //la fonction renvoie le mot
+}
 
 
 /* USER CODE END 4 */
