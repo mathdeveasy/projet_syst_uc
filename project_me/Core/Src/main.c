@@ -149,23 +149,40 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
+  // ----------------- INITIALISATION DES PIN POUR L'ARINC ---------------------------
+
+  //pa8 = D9 = A (multiplexeur)
+  //pa11 = D10 = (multiplexeur)
+
+  //activation horloge gpioB
+  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+
+  //on mets les port pa8 et pa11 en mode output (attention codé sur deux bits),
+  GPIOA->MODER &= ~(GPIO_MODER_MODE8_1); // on met le bit 9 à 0
+  GPIOA->MODER |= GPIO_MODER_MODE8_0; // on met le bit 8 à 1
+
+  GPIOA->MODER &= ~(GPIO_MODER_MODE11_1);
+  GPIOA->MODER |= GPIO_MODER_MODE11_0;
+
+  // on configure en push pull
+  GPIOA->OTYPER &= ~(GPIO_OTYPER_OT8);
+  GPIOA->OTYPER &= ~(GPIO_OTYPER_OT11);
+
+  // on configure la vitesse des ports en high speed ( code sur deux bits)
+  GPIOA->OSPEEDR |= GPIO_OSPEEDR_OSPEED8_1;
+  GPIOA->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED8_0);
+
+  GPIOA->OSPEEDR |= GPIO_OSPEEDR_OSPEED11_1;
+  GPIOA->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED11_0);
+
+
   // ----------------- SEQUENCE D'INITIALISATION DES CAPTEURS ---------------------------
+  myprintf("Début de l'initialisation ");
 
   int status_ecran = SSD1306_Init ();// demarrer ecran
-    if (status_ecran==0){
-  	  Error_Handler();
-    }
-
-  int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16); // demarrage bmp280 avec parametres
-  if (status!= 0)
-    {
-  	  Error_Handler();
-    }
-
-  icm20948_init(); // initialiser gyro et accelero
-  ak09916_init(); // initialiser magneto
-
-
+  if (status_ecran==0){
+	  Error_Handler();
+  }
 
   SSD1306_Clear();
   SSD1306_GotoXY (0,10); // va a la pos (0,10)
@@ -174,6 +191,14 @@ int main(void)
   SSD1306_Puts ("Banc de test avionique.", &Font_5x7, 1);
   SSD1306_UpdateScreen(); // update screen
 
+  int status = BME280_Config(OSRS_2, OSRS_16, OSRS_OFF, MODE_NORMAL, T_SB_0p5, IIR_16); // demarrage bmp280 avec parametres
+  if (status!= 0)
+  {
+	  Error_Handler();
+  }
+
+  icm20948_init(); // initialiser gyro et accelero
+  ak09916_init(); // initialiser magneto
 
 
   HAL_Delay(3000); // delay pour calmer le jeu, surtout pour la carte sd

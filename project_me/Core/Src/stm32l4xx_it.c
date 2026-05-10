@@ -268,32 +268,34 @@ void TIM1_UP_TIM16_IRQHandler(void)
 
   if(sending==1) {
       if(attente > 0) {
-          // on veut temporiser pdt 4 bits entier (soit 8 demibits)
-          HAL_GPIO_WritePin(GPIOB, ARINC_A_Pin, GPIO_PIN_RESET);
-          HAL_GPIO_WritePin(GPIOB, ARINC_B_Pin, GPIO_PIN_RESET);
+
+          // on veut temporiser pdt 4 bits entier (soit 8 demibits) ---- donc on met a et b a 0
+    	  GPIOA->BSRR = GPIO_BSRR_BR8; // reset sur pa8 = A
+    	  GPIOA->BSRR = GPIO_BSRR_BR11; // reset sur pa11 = B
           attente--;
 
-          if(gap_count == 0) {
+          if(attente == 0) {
               sending = 0;  // mot + attente terminé
               bit_index = 0;
           }
 
-      } else if(half_bit == 0) {
+      } else if(demi_bit == 0) {
           // première moitié — envoi de la valeur high ou low
           uint8_t bit = (current_word >> bit_index) & 1;
           if(bit == 1) {
-              HAL_GPIO_WritePin(GPIOB, ARINC_A_Pin, GPIO_PIN_SET);
-              HAL_GPIO_WritePin(GPIOB, ARINC_B_Pin, GPIO_PIN_RESET);
+        	  GPIOA->BSRR = GPIO_BSRR_BR8; // set sur pa8 = A
+        	  GPIOA->BSRR = GPIO_BSRR_BR11; // reset sur pa11 = B
           } else {
-              HAL_GPIO_WritePin(GPIOB, ARINC_A_Pin, GPIO_PIN_RESET);
-              HAL_GPIO_WritePin(GPIOB, ARINC_B_Pin, GPIO_PIN_SET);
+        	  GPIOA->BSRR = GPIO_BSRR_BR8; // reset sur pa8 = A
+        	  GPIOA->BSRR = GPIO_BSRR_BR11; // set sur pa11 = B
           }
           demi_bit = 1; // permet de passer lors du tick de timer suivant a l'autre condition
 
       } else {
+
           // deuxième moitié — dnvoi de la valeur null
-          HAL_GPIO_WritePin(GPIOB, ARINC_A_Pin, GPIO_PIN_RESET);
-          HAL_GPIO_WritePin(GPIOB, ARINC_B_Pin, GPIO_PIN_RESET);
+    	  GPIOA->BSRR = GPIO_BSRR_BR8; // reset sur pa8 = A
+    	  GPIOA->BSRR = GPIO_BSRR_BR11; // reset sur pa11 = B
           demi_bit = 0;
           bit_index++;
 
