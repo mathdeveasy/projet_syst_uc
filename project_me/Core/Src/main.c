@@ -388,8 +388,6 @@ int main(void)
   }
 
 
-
-
   SSD1306_GotoXY(0,50); // va a la pos (0,50)
   SSD1306_Puts("OK !", &Font_5x7, 1);
   SSD1306_UpdateScreen(); // update screen
@@ -410,13 +408,7 @@ int main(void)
   SSD1306_UpdateScreen(); // update screen
   HAL_Delay(5000);
 
-
-
   // ---------------------------  FIN GESTION CARTE SD ------------------------------------
-
-
-
-
 
   SSD1306_Clear();
   HAL_TIM_Base_Start_IT(&htim2); //démarrage du timer d'acquisition
@@ -434,7 +426,7 @@ int main(void)
 	  roll = atan2(my_accel.y, my_accel.z) * 180.0 / M_PI;
 	  pitch = atan2(my_accel.x, my_accel.z) * 180.0 / M_PI;
 
-	  //
+
 	  float roll_rad  = roll  * M_PI / 180.0f;
 	  float pitch_rad = pitch * M_PI / 180.0f;
 
@@ -561,10 +553,6 @@ int main(void)
 		  }
 
 		  newdata = 0;
-
-
-
-
 
 
 
