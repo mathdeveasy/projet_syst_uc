@@ -65,7 +65,15 @@ axises my_gyro;
 axises my_accel;
 axises my_mag;
 float Humidity, Pressure, Temperature;
+
 float roll, pitch, yaw;
+// Variable globale à ajouter
+float yaw_offset = 0.0f;
+int yaw_initialized = 0;
+
+#define MAG_OFFSET_X  -31.20f
+#define MAG_OFFSET_Y   21.45f
+#define MAG_OFFSET_Z   51.98f
 
 int place_totale;
 int place_dispo;
@@ -85,6 +93,9 @@ char buffer_ecriture_ecran[50];
 uint16_t session_num = 0;
 char log_filename[20];
 char session_buf[10]={0};
+
+
+
 
 
 
@@ -199,6 +210,7 @@ int main(void)
 
   icm20948_init(); // initialiser gyro et accelero
   ak09916_init(); // initialiser magneto
+  ak09916_init();
 
 
   HAL_Delay(3000); // delay pour calmer le jeu, surtout pour la carte sd
@@ -417,10 +429,24 @@ int main(void)
   while (1)
   {
 	  // calcul des angles pitch et roll et yaw avec la trigo
-	  // marche mais le capteur doit etre initialisé dans le bon sens@	@
+
+	  // marche mais le capteur doit etre initialisé dans le bon sens cad a plat
 	  roll = atan2(my_accel.y, my_accel.z) * 180.0 / M_PI;
 	  pitch = atan2(my_accel.x, my_accel.z) * 180.0 / M_PI;
-	  yaw = atan2(my_mag.y, my_mag.x) * 180.0 / M_PI;
+
+	  //
+	  float roll_rad  = roll  * M_PI / 180.0f;
+	  float pitch_rad = pitch * M_PI / 180.0f;
+
+	  float mx = my_mag.x - MAG_OFFSET_X;
+	  float my = my_mag.y - MAG_OFFSET_Y;
+	  float mz = my_mag.z - MAG_OFFSET_Z;
+
+	  // calibration en fonction de pitch et roll
+	  float Mx = mx * cos(pitch_rad) + mz * sin(pitch_rad);
+	  float My = mx * sin(roll_rad) * sin(pitch_rad)+ my * cos(roll_rad)- mz * sin(roll_rad) * cos(pitch_rad);
+
+	  yaw = atan2(-My, Mx) * 180.0f / M_PI;
 
 
 	  if(newdata == 1){
@@ -443,7 +469,7 @@ int main(void)
 
 		  sync_counter++;
 		  if (sync_counter >= 10) {
-			  f_sync(&fil);
+			  f_sync(&fil); // permet "d'enregistrer" toutes les dix valeurs
 			  sync_counter = 0;
 		  }
 
