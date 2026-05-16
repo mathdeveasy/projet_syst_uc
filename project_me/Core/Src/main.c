@@ -76,7 +76,7 @@ int ecran_type;
 int last_ecran_type;
 
 uint32_t mot_arinc; //utilisation de uint pour avoir un int non signé de 32 bits (equivalent unsigned long int)
-
+int sync_counter;
 
 char mess[200];
 char buffer_ecriture_ecran[50];
@@ -370,10 +370,11 @@ int main(void)
   fres = f_open(&fil, log_filename, FA_WRITE | FA_CREATE_ALWAYS);
   if (fres == FR_OK) {
 	  f_printf(&fil, "roll,pitch,yaw,temperature,pressure\n");
-	  f_close(&fil);
+	  //f_close(&fil); // on ne close pas (pour garder le fichier ouvert toute la session)
+  }else {
+	  myprintf("Erreur ouverture log (%i)\r\n", fres);
   }
 
-  f_mount(NULL, "", 0);
 
 
 
@@ -424,25 +425,49 @@ int main(void)
 
 	  if(newdata == 1){
 
-		  // -------------------- ENVOI DES DONNES --------------------------------
-		  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n BMP280-> Temp: %.2f | Pressure: %.2f \r\n", roll, pitch, yaw, Temperature, Pressure);
-		  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
-
-
-		  f_mount(&FatFs, "", 1);
-		  f_open(&fil, log_filename, FA_WRITE | FA_OPEN_ALWAYS);
-		  f_lseek(&fil, f_size(&fil)); // aller à la fin du fichier
-		  len = snprintf(mess, sizeof(mess), "%.2f,%.2f,%.2f,%.2f,%.2f\n",roll, pitch, yaw, Temperature, Pressure);
-		  UINT bw;
-		  f_write(&fil, mess, len, &bw);
-		  f_close(&fil);
-		  f_mount(NULL, "", 0);
-
 		  // ------------------- CREATION DU MOT ARINC429 ---------------------
 
 		  uint32_t press_arinc = Pressure; // on transforme le float en int
 		  mot_arinc = create_arincWord(0xFF, 0x0, press_arinc, 0x0); // on créé le mot arinc (j'utilise 0xFF et pas 0x100 car le label n'est codé que sur 8 bits (donc jusque 255))
 		  update_arinc = 1; // on dit que le nouveau mot est créé
+
+		  // -------------------- ENVOI DES DONNES --------------------------------
+		  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n BMP280-> Temp: %.2f | Pressure: %.2f \r\n ARINC = %lu \r\n", roll, pitch, yaw, Temperature, Pressure,mot_arinc);
+		  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
+
+
+
+		  len = snprintf(mess, sizeof(mess), "%.2f,%.2f,%.2f,%.2f,%.2f\n",roll, pitch, yaw, Temperature, Pressure);
+		  UINT bw;
+		  f_write(&fil, mess, len, &bw);
+
+		  sync_counter++;
+		  if (sync_counter >= 10) {
+			  f_sync(&fil);
+			  sync_counter = 0;
+		  }
+
+
+		  // -------------------- GESTION DES LEDS DE SECURITE ------------------------------
+
+		  if(roll > 40.0f){
+			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+		  }else if (roll < -40.0f){
+			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_SET);
+		  }else{
+			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET);
+		  }
+
+		  if(pitch > 40.0f){
+			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
+		  }else if (pitch< -40.0f){
+			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
+		  }else{
+			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_RESET);
+			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
+		  }
+
 
 
 
@@ -692,9 +717,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 31;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 65535;
+  htim1.Init.Period = 39;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -868,27 +893,22 @@ void myprintf(const char *fmt, ...) {
 uint32_t create_arincWord(uint8_t label,uint8_t sdi,uint32_t data, uint8_t ssm){
 
 	uint32_t word=0;
-	uint8_t somme;
+	uint8_t somme=0;
 	uint8_t parity;
 
 	//on bouge les bits pour les placer au bon endroit sur notre mot
-	word |= ssm << 29;
-	word |= data << 10;
-	word |= sdi << 8;
-	word |= label << 0;
+	word |= (ssm   & 0x03)    << 29; // le fait de masquer, permet de s'assurer d'envoyer le bon nombre de bits pour chaque troncon
+	word |= (data  & 0x7FFFF) << 10;
+	word |= (sdi   & 0x03)    << 8;
+    word |= (label & 0xFF)    << 0;
 
 	// CHECK PARITE (impaire dans le cadre de l'arinc 429)
-	for (int i = 0; i < 32; i++) {
-		somme += (word & (1 << i)) >> i;
-	}
+	 for (int i = 0; i < 31; i++) {
+	        somme += (word >> i) & 1;
+	    }
 
-	if (somme % 2 == 0) {
-		//si Le nombre est pair : on rajoute 1
-		parity = 1;
-	} else {
-		parity = 0;
-		//le nombre est impair
-	}
+	    parity = (somme % 2 == 0) ? 1 : 0;
+
 	// on ajoute notre parité
 	word |= parity << 31;
 

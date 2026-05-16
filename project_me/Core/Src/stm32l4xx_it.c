@@ -283,11 +283,11 @@ void TIM1_UP_TIM16_IRQHandler(void)
           // première moitié — envoi de la valeur high ou low
           uint8_t bit = (current_word >> bit_index) & 1;
           if(bit == 1) {
-        	  GPIOA->BSRR = GPIO_BSRR_BR8; // set sur pa8 = A
+        	  GPIOA->BSRR = GPIO_BSRR_BS8; // set sur pa8 = A
         	  GPIOA->BSRR = GPIO_BSRR_BR11; // reset sur pa11 = B
           } else {
         	  GPIOA->BSRR = GPIO_BSRR_BR8; // reset sur pa8 = A
-        	  GPIOA->BSRR = GPIO_BSRR_BR11; // set sur pa11 = B
+        	  GPIOA->BSRR = GPIO_BSRR_BS11; // set sur pa11 = B
           }
           demi_bit = 1; // permet de passer lors du tick de timer suivant a l'autre condition
 
