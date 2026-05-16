@@ -226,7 +226,7 @@ void SysTick_Handler(void)
   */
 void EXTI1_IRQHandler(void)
 {
-	/* USER CODE BEGIN EXTI1_IRQn 0 */
+  /* USER CODE BEGIN EXTI1_IRQn 0 */
 	// fonction pour anti-rebounce
 	static uint32_t last_press = 0;
 	uint32_t now = HAL_GetTick();
@@ -239,11 +239,11 @@ void EXTI1_IRQHandler(void)
 		last_press = now;
 	}
 
-	/* USER CODE END EXTI1_IRQn 0 */
-	HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
-	/* USER CODE BEGIN EXTI1_IRQn 1 */
+  /* USER CODE END EXTI1_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
+  /* USER CODE BEGIN EXTI1_IRQn 1 */
 
-	/* USER CODE END EXTI1_IRQn 1 */
+  /* USER CODE END EXTI1_IRQn 1 */
 }
 
 /**

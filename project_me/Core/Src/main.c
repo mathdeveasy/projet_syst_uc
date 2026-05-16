@@ -57,6 +57,7 @@ SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim15;
 
 UART_HandleTypeDef huart2;
 
@@ -111,6 +112,7 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM1_Init(void);
+static void MX_TIM15_Init(void);
 /* USER CODE BEGIN PFP */
 void myprintf(const char *fmt, ...);
 uint32_t create_arincWord(uint8_t label,uint8_t sdi,uint32_t data, uint8_t ssm);
@@ -158,6 +160,7 @@ int main(void)
   MX_FATFS_Init();
   MX_TIM2_Init();
   MX_TIM1_Init();
+  MX_TIM15_Init();
   /* USER CODE BEGIN 2 */
 
   // ----------------- INITIALISATION DES PIN POUR L'ARINC ---------------------------
@@ -413,6 +416,7 @@ int main(void)
   SSD1306_Clear();
   HAL_TIM_Base_Start_IT(&htim2); //démarrage du timer d'acquisition
   HAL_TIM_Base_Start_IT(&htim1); //démarrage du timer d'envoi par arinc
+  HAL_TIM_PWM_Start(&htim15, TIM_CHANNEL_2); //demarrage de la pwm
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -420,6 +424,7 @@ int main(void)
 
   while (1)
   {
+
 	  // calcul des angles pitch et roll et yaw avec la trigo
 
 	  // marche mais le capteur doit etre initialisé dans le bon sens cad a plat
@@ -440,6 +445,32 @@ int main(void)
 
 	  yaw = atan2(-My, Mx) * 180.0f / M_PI;
 
+	  //------------- controle du SG90 ----------------
+
+	  if (!yaw_initialized) {
+	      yaw_offset = yaw; // defini la valeur de yaw a laquelle on s'est initialisé
+	      yaw_initialized = 1;
+	  }
+	  // calcul de l'angle par rapport a la potition initiale
+	  float yaw_relatif = yaw - yaw_offset;
+
+	  // recadrage entre -180 et +180 pour éviter les sauts brusques
+	  if (yaw_relatif > 180.0f)  yaw_relatif -= 360.0f;
+	  if (yaw_relatif < -180.0f) yaw_relatif += 360.0f;
+
+
+	  // on remap la valeur de cet angle car la course du servo est de 90° max
+	  if (yaw_relatif > 90.0f)  yaw_relatif = 90.0f;
+	  if (yaw_relatif < -90.0f) yaw_relatif = -90.0f;
+
+	  // on passe de -90:90 a 0:180
+	  float servo_angle = yaw_relatif + 90.0f;
+
+	  // on convertit le 0:180 en 1000:2000 (valeurs attendus par le servo (1000 = plein gauche, 1500 = centré, 2000 = plein droit)
+	  uint32_t valeur_pulse = 1000 + (uint32_t)((servo_angle * 1000.0f) / 180.0f);
+
+	 // on "set" le rapport cyclique
+	  __HAL_TIM_SET_COMPARE(&htim15, TIM_CHANNEL_2, valeur_pulse);
 
 	  if(newdata == 1){
 
@@ -731,9 +762,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 31;
+  htim1.Init.Prescaler = 0;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 39;
+  htim1.Init.Period = 65535;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -801,6 +832,81 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief TIM15 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM15_Init(void)
+{
+
+  /* USER CODE BEGIN TIM15_Init 0 */
+
+  /* USER CODE END TIM15_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  /* USER CODE BEGIN TIM15_Init 1 */
+
+  /* USER CODE END TIM15_Init 1 */
+  htim15.Instance = TIM15;
+  htim15.Init.Prescaler = 31;
+  htim15.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim15.Init.Period = 19999;
+  htim15.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim15.Init.RepetitionCounter = 0;
+  htim15.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim15) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim15, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim15) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim15, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim15, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim15, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM15_Init 2 */
+
+  /* USER CODE END TIM15_Init 2 */
+  HAL_TIM_MspPostInit(&htim15);
 
 }
 
