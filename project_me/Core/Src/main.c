@@ -51,6 +51,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
@@ -65,7 +67,6 @@ UART_HandleTypeDef huart2;
 axises my_gyro;
 axises my_accel;
 axises my_mag;
-float Humidity, Pressure, Temperature;
 
 float roll, pitch, yaw;
 // Variable globale à ajouter
@@ -75,6 +76,14 @@ int yaw_initialized = 0;
 #define MAG_OFFSET_X  -31.20f
 #define MAG_OFFSET_Y   21.45f
 #define MAG_OFFSET_Z   51.98f
+
+float Humidity, Pressure, Temperature;
+
+uint32_t val_adc;
+float temp_lm35 = 0;
+float temp_reel_lm35 = 0;
+
+
 
 int place_totale;
 int place_dispo;
@@ -113,6 +122,7 @@ static void MX_SPI1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM15_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 void myprintf(const char *fmt, ...);
 uint32_t create_arincWord(uint8_t label,uint8_t sdi,uint32_t data, uint8_t ssm);
@@ -161,6 +171,7 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM1_Init();
   MX_TIM15_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
   // ----------------- INITIALISATION DES PIN POUR L'ARINC ---------------------------
@@ -424,9 +435,17 @@ int main(void)
 
   while (1)
   {
+	  // ------------ relevé de la valeur de l'adc et calcul ---------------
+	  HAL_ADC_Start(&hadc1);
+	  HAL_ADC_PollForConversion(&hadc1, 10);
+	  val_adc = HAL_ADC_GetValue(&hadc1);
+	  // Conversion rapide (3.3V / 4095 * 100) 4095 car l'adc est configure en 12bits
+	  temp_lm35 = (val_adc*3.3)/4095;
+	  temp_reel_lm35 = temp_lm35 * 100;
+
+	  // ------------calcul des angles ------------
 
 	  // calcul des angles pitch et roll et yaw avec la trigo
-
 	  // marche mais le capteur doit etre initialisé dans le bon sens cad a plat
 	  roll = atan2(my_accel.y, my_accel.z) * 180.0 / M_PI;
 	  pitch = atan2(my_accel.x, my_accel.z) * 180.0 / M_PI;
@@ -444,6 +463,7 @@ int main(void)
 	  float My = mx * sin(roll_rad) * sin(pitch_rad)+ my * cos(roll_rad)- mz * sin(roll_rad) * cos(pitch_rad);
 
 	  yaw = atan2(-My, Mx) * 180.0f / M_PI;
+
 
 	  //------------- controle du SG90 ----------------
 
@@ -481,7 +501,7 @@ int main(void)
 		  update_arinc = 1; // on dit que le nouveau mot est créé
 
 		  // -------------------- ENVOI DES DONNES --------------------------------
-		  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n BMP280-> Temp: %.2f | Pressure: %.2f \r\n ARINC = %lu \r\n", roll, pitch, yaw, Temperature, Pressure,mot_arinc);
+		  int len = snprintf(mess, sizeof(mess), "Angles -> Roll: %.2f° | Pitch: %.2f° | Yaw: %.2f°\r\n BMP280-> Temp: %.2f | Pressure: %.2f \r\n TEMPLM35 =  %.2f \r\n ARINC = %lu \r\n", roll, pitch, yaw, Temperature, Pressure,temp_reel_lm35,mot_arinc);
 		  HAL_UART_Transmit(&huart2, (uint8_t*)mess, len, 100);
 
 
@@ -653,6 +673,64 @@ void SystemClock_Config(void)
   /** Enable MSI Auto calibration
   */
   HAL_RCCEx_EnableMSIPLLMode();
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.LowPowerAutoWait = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  hadc1.Init.OversamplingMode = DISABLE;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_6;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
