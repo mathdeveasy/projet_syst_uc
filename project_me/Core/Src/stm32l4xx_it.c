@@ -319,7 +319,9 @@ void TIM2_IRQHandler(void)
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
-  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_4); //toggle pin pour voir si ca marche bien visuellement
+  //toggle pin pour voir si ca marche bien visuellement
+  GPIOB->BSRR = GPIO_BSRR_BS5; // set sur pa8 = A
+
 
   icm20948_gyro_read_dps(&my_gyro); // mesures icm20948
   icm20948_accel_read_g(&my_accel);
@@ -328,6 +330,7 @@ void TIM2_IRQHandler(void)
   BME280_Measure(&Temperature, &Pressure, &Humidity); //mesure temp
 
   newdata = 1;
+
 
   /* USER CODE END TIM2_IRQn 1 */
 }

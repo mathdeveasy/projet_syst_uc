@@ -179,7 +179,7 @@ int main(void)
   //pa8 = D9 = A (multiplexeur)
   //pa11 = D10 = (multiplexeur)
 
-  //activation horloge gpioB
+  //activation horloge gpio
   RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
 
   //on mets les port pa8 et pa11 en mode output (attention codé sur deux bits),
@@ -199,6 +199,26 @@ int main(void)
 
   GPIOA->OSPEEDR |= GPIO_OSPEEDR_OSPEED11_1;
   GPIOA->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED11_0);
+
+  // ----------------- INITIALISATION DES PIN POUR LE TOGGLE ---------------------------
+
+
+    //activation horloge gpio
+    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
+
+    //mode output (attention codé sur deux bits),
+    GPIOB->MODER &= ~(GPIO_MODER_MODE5_1); // on met le bit 9 à 0
+    GPIOB->MODER |= GPIO_MODER_MODE5_0; // on met le bit 8 à 1
+
+
+    // on configure en push pull
+    GPIOB->OTYPER &= ~(GPIO_OTYPER_OT5);
+
+    // on configure la vitesse des ports en high speed ( code sur deux bits)
+    GPIOB->OSPEEDR |= GPIO_OSPEEDR_OSPEED5_1;
+    GPIOB->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED5_0);
+
+
 
 
   // ----------------- SEQUENCE D'INITIALISATION DES CAPTEURS ---------------------------
@@ -511,7 +531,7 @@ int main(void)
 		  f_write(&fil, mess, len, &bw);
 
 		  sync_counter++;
-		  if (sync_counter >= 10) {
+		  if (sync_counter >= 20) {
 			  f_sync(&fil); // permet "d'enregistrer" toutes les dix valeurs
 			  sync_counter = 0;
 		  }
@@ -604,6 +624,7 @@ int main(void)
 		  }
 
 		  newdata = 0;
+		  GPIOB->BSRR = GPIO_BSRR_BR5;
 
 
 
@@ -804,7 +825,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1044,7 +1065,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LD3_Pin|GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : SPI_CS_Pin */
   GPIO_InitStruct.Pin = SPI_CS_Pin;
@@ -1059,12 +1080,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LD3_Pin PB4 */
-  GPIO_InitStruct.Pin = LD3_Pin|GPIO_PIN_4;
+  /*Configure GPIO pin : LD3_Pin */
+  GPIO_InitStruct.Pin = LD3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(LD3_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI1_IRQn, 3, 0);
