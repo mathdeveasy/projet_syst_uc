@@ -1116,9 +1116,9 @@ uint32_t create_arincWord(uint8_t label,uint8_t sdi,uint32_t data, uint8_t ssm){
 	uint8_t parity;
 
 	// on passe le label en bcd
-	uint8_t c = (label_ / 100) % 10;
-    uint8_t d = (label_ / 10) % 10;
-    uint8_t u = label_ % 10;
+	uint8_t c = (label / 100) % 10;
+    uint8_t d = (label / 10) % 10;
+    uint8_t u = label % 10;
 
 	//reconstruction du label (avec masquage pour eviter le bug si > 777
     uint8_t label_bin = ((c & 0x03) << 6) | ((d & 0x07) << 3) | (u & 0x07);
@@ -1127,7 +1127,7 @@ uint32_t create_arincWord(uint8_t label,uint8_t sdi,uint32_t data, uint8_t ssm){
 	word |= (ssm   & 0x03)    << 29; // le fait de masquer, permet de s'assurer d'envoyer le bon nombre de bits pour chaque troncon
 	word |= (data  & 0x7FFFF) << 10;
 	word |= (sdi   & 0x03)    << 8;
-    word |= (label & 0xFF)    << 0;
+    word |= (label_bin & 0xFF)    << 0;
 
 	// CHECK PARITE (impaire dans le cadre de l'arinc 429)
 	 for (int i = 0; i < 31; i++) {
