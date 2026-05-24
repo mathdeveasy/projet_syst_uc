@@ -1115,6 +1115,14 @@ uint32_t create_arincWord(uint8_t label,uint8_t sdi,uint32_t data, uint8_t ssm){
 	uint8_t somme=0;
 	uint8_t parity;
 
+	// on passe le label en bcd
+	uint8_t c = (label_ / 100) % 10;
+    uint8_t d = (label_ / 10) % 10;
+    uint8_t u = label_ % 10;
+
+	//reconstruction du label (avec masquage pour eviter le bug si > 777
+    uint8_t label_bin = ((c & 0x03) << 6) | ((d & 0x07) << 3) | (u & 0x07);
+	
 	//on bouge les bits pour les placer au bon endroit sur notre mot
 	word |= (ssm   & 0x03)    << 29; // le fait de masquer, permet de s'assurer d'envoyer le bon nombre de bits pour chaque troncon
 	word |= (data  & 0x7FFFF) << 10;
