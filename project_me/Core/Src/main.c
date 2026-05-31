@@ -219,9 +219,37 @@ int main(void)
     GPIOB->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED5_0);
 
 
+    // ----------------- INITIALISATION DES PIN POUR LES LEDS DE SECU ---------------------------
+
+    // pb6 = tangage
+    // pb7 = roulis
+    //activation horloge gpio
+
+    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
+
+    //mode output (attention codé sur deux bits),
+    GPIOB->MODER &= ~(GPIO_MODER_MODE7_1); // on met le bit 9 à 0
+    GPIOB->MODER |= GPIO_MODER_MODE7_0; // on met le bit 8 à 1
+
+    GPIOB->MODER &= ~(GPIO_MODER_MODE6_1); // on met le bit 9 à 0
+    GPIOB->MODER |= GPIO_MODER_MODE6_0; // on met le bit 8 à 1
 
 
-  // ----------------- SEQUENCE D'INITIALISATION DES CAPTEURS ---------------------------
+
+    // on configure en push pull
+    GPIOB->OTYPER &= ~(GPIO_OTYPER_OT6);
+    GPIOB->OTYPER &= ~(GPIO_OTYPER_OT7);
+
+    // on configure la vitesse des ports en high speed ( code sur deux bits)
+    GPIOB->OSPEEDR |= GPIO_OSPEEDR_OSPEED6_1;
+    GPIOB->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED6_0);
+
+    GPIOB->OSPEEDR |= GPIO_OSPEEDR_OSPEED7_1;
+    GPIOB->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED7_0);
+
+
+
+    // ----------------- SEQUENCE D'INITIALISATION DES CAPTEURS ---------------------------
   myprintf("Début de l'initialisation ");
 
   int status_ecran = SSD1306_Init ();// demarrer ecran
@@ -540,21 +568,19 @@ int main(void)
 		  // -------------------- GESTION DES LEDS DE SECURITE ------------------------------
 
 		  if(roll > 40.0f){
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+			  GPIOB->BSRR = GPIO_BSRR_BS7; // set sur pa8 = A
 		  }else if (roll < -40.0f){
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_SET);
+			  GPIOB->BSRR = GPIO_BSRR_BS7; // set sur pa8 = A
 		  }else{
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET);
+			  GPIOB->BSRR = GPIO_BSRR_BR7;
 		  }
 
 		  if(pitch > 40.0f){
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
+			  GPIOB->BSRR = GPIO_BSRR_BS6;
 		  }else if (pitch< -40.0f){
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
+			  GPIOB->BSRR = GPIO_BSRR_BS6;
 		  }else{
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_RESET);
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
+			  GPIOB->BSRR = GPIO_BSRR_BR6;
 		  }
 
 

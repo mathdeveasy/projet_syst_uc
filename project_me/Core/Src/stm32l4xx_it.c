@@ -320,7 +320,7 @@ void TIM2_IRQHandler(void)
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
   //toggle pin pour voir si ca marche bien visuellement
-  GPIOB->BSRR = GPIO_BSRR_BS5; // set sur pa8 = A
+  GPIOB->BSRR = GPIO_BSRR_BS5; // set sur pa5 = A
 
 
   icm20948_gyro_read_dps(&my_gyro); // mesures icm20948
